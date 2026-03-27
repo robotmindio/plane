@@ -30,8 +30,8 @@ Infrastructure dependencies:
 |-----------|-------|---------|
 | PostgreSQL 15 | `postgres:15.7-alpine` | Primary database |
 | Valkey 7.2 | `valkey/valkey:7.2.11-alpine` | Cache (Redis-compatible) |
-| RabbitMQ 3.13 | `rabbitmq:3.13.6-management-alpine` | Celery message broker |
-| MinIO | `minio/minio:latest` | S3-compatible file storage |
+| RabbitMQ 3.13 | `rabbitmq:3.13.6-alpine` | Celery message broker |
+| MinIO | `minio/minio:RELEASE.2024-06-13T22-53-53Z` | S3-compatible file storage |
 
 ## Prerequisites
 
@@ -83,6 +83,8 @@ All configuration lives in `docker/.env`. The setup script generates one with ra
 | `GUNICORN_WORKERS` | API worker count (default: `1`) |
 | `FILE_SIZE_LIMIT` | Max upload size in bytes (default: `5242880`) |
 
+Connection URLs (`DATABASE_URL`, `REDIS_URL`, `AMQP_URL`) are constructed dynamically by compose from the individual variables. Do not set them in `.env`.
+
 See `docker/.env.example` for all available options.
 
 ### Using external services
@@ -90,7 +92,7 @@ See `docker/.env.example` for all available options.
 To use an external PostgreSQL, Redis, RabbitMQ, or S3:
 
 1. Comment out the corresponding service in `docker-compose.yml`
-2. Update the connection URL in `.env` (e.g. `DATABASE_URL`, `REDIS_URL`, `AMQP_URL`)
+2. Update the individual host/port/user/password variables in `.env`
 3. For external S3, set `USE_MINIO=0` and configure `AWS_*` variables
 
 ### Useful commands
@@ -253,11 +255,11 @@ helm upgrade plane ./plane-ce -n plane -f values-production.yaml
 # Uninstall
 helm uninstall plane -n plane
 
-# View API logs
-kubectl logs -f deployment/plane-api -n plane
+# View API logs (resource name includes release name)
+kubectl logs -f -n plane -l app.kubernetes.io/component=api
 
 # Run migrations manually
-kubectl exec -it deployment/plane-api -n plane -- python manage.py migrate
+kubectl exec -it -n plane -l app.kubernetes.io/component=api -- python manage.py migrate
 ```
 
 ---
@@ -310,9 +312,9 @@ docker compose cp ./minio-backup/. plane-minio:/export
 ### Kubernetes
 
 ```bash
-# Backup
-kubectl exec -n plane statefulset/plane-postgres -- pg_dump -U plane plane > plane-backup.sql
+# Backup (use label selector — resource names include the release name)
+kubectl exec -n plane -l app.kubernetes.io/component=postgres -- pg_dump -U plane plane > plane-backup.sql
 
 # Restore
-kubectl exec -i -n plane statefulset/plane-postgres -- psql -U plane plane < plane-backup.sql
+kubectl exec -i -n plane -l app.kubernetes.io/component=postgres -- psql -U plane plane < plane-backup.sql
 ```

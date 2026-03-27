@@ -15,28 +15,29 @@ data:
   # PostgreSQL
   {{- if .Values.postgres.local }}
   PGHOST: {{ printf "%s-postgres" (include "plane.fullname" .) | quote }}
-  {{- end }}
   PGDATABASE: {{ .Values.postgres.database | quote }}
   POSTGRES_USER: {{ .Values.postgres.user | quote }}
   POSTGRES_DB: {{ .Values.postgres.database | quote }}
   POSTGRES_PORT: "5432"
+  {{- end }}
   # Redis
   {{- if .Values.redis.local }}
   REDIS_HOST: {{ printf "%s-redis" (include "plane.fullname" .) | quote }}
-  {{- end }}
   REDIS_PORT: "6379"
+  {{- end }}
   # RabbitMQ
   {{- if .Values.rabbitmq.local }}
   RABBITMQ_HOST: {{ printf "%s-rabbitmq" (include "plane.fullname" .) | quote }}
-  {{- end }}
   RABBITMQ_PORT: "5672"
   RABBITMQ_USER: {{ .Values.rabbitmq.user | quote }}
   RABBITMQ_VHOST: {{ .Values.rabbitmq.vhost | quote }}
+  {{- end }}
   # S3
   USE_MINIO: {{ ternary "1" "0" .Values.minio.local | quote }}
   AWS_S3_ENDPOINT_URL: {{ include "plane.s3Endpoint" . | quote }}
   {{- if .Values.minio.local }}
   AWS_S3_BUCKET_NAME: {{ .Values.minio.bucketName | quote }}
+  AWS_REGION: {{ .Values.env.awsRegion | quote }}
   {{- else }}
   AWS_S3_BUCKET_NAME: {{ .Values.minio.external.bucketName | quote }}
   AWS_REGION: {{ .Values.minio.external.region | quote }}

@@ -14,6 +14,8 @@ spec:
     metadata:
       labels:
         {{- include "plane.selectorLabels" $ctx | nindent 8 }}
+      annotations:
+        {{- include "plane.configChecksum" . | nindent 8 }}
     spec:
       containers:
         - name: worker
@@ -31,5 +33,11 @@ spec:
                 name: {{ include "plane.fullname" . }}-config
             - secretRef:
                 name: {{ include "plane.secretName" . }}
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "celery -A plane inspect ping -d celery@$HOSTNAME"]
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            timeoutSeconds: 10
           resources:
             {{- toYaml .Values.worker.resources | nindent 12 }}

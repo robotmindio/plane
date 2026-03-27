@@ -26,6 +26,7 @@ Common labels.
 */}}
 {{- define "plane.labels" -}}
 helm.sh/chart: {{ include "plane.name" . }}-{{ .Chart.Version | replace "+" "_" }}
+app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 app.kubernetes.io/part-of: plane
 app.kubernetes.io/instance: {{ .Release.Name }}
@@ -60,10 +61,11 @@ Image helper: registry/image:tag
 
 {{/*
 PostgreSQL connection URL.
+Passwords are hex-only when generated, but we urlencode for safety.
 */}}
 {{- define "plane.databaseUrl" -}}
 {{- if .Values.postgres.local -}}
-postgresql://{{ .Values.postgres.user }}:{{ .Values.postgres.password }}@{{ include "plane.fullname" . }}-postgres:5432/{{ .Values.postgres.database }}
+postgresql://{{ .Values.postgres.user }}:{{ .Values.postgres.password | urlquery }}@{{ include "plane.fullname" . }}-postgres:5432/{{ .Values.postgres.database }}
 {{- else -}}
 {{- .Values.postgres.externalUrl }}
 {{- end -}}
@@ -85,7 +87,7 @@ AMQP connection URL.
 */}}
 {{- define "plane.amqpUrl" -}}
 {{- if .Values.rabbitmq.local -}}
-amqp://{{ .Values.rabbitmq.user }}:{{ .Values.rabbitmq.password }}@{{ include "plane.fullname" . }}-rabbitmq:5672/{{ .Values.rabbitmq.vhost }}
+amqp://{{ .Values.rabbitmq.user }}:{{ .Values.rabbitmq.password | urlquery }}@{{ include "plane.fullname" . }}-rabbitmq:5672/{{ .Values.rabbitmq.vhost }}
 {{- else -}}
 {{- .Values.rabbitmq.externalUrl }}
 {{- end -}}
@@ -100,4 +102,12 @@ http://{{ include "plane.fullname" . }}-minio:9000
 {{- else -}}
 {{- .Values.minio.external.endpoint }}
 {{- end -}}
+{{- end }}
+
+{{/*
+Config checksum annotation — triggers rolling restart on config/secret changes.
+*/}}
+{{- define "plane.configChecksum" -}}
+checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+checksum/secret: {{ include (print $.Template.BasePath "/secrets.yaml") . | sha256sum }}
 {{- end }}

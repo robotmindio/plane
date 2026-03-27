@@ -15,6 +15,8 @@ spec:
     metadata:
       labels:
         {{- include "plane.selectorLabels" $ctx | nindent 8 }}
+      annotations:
+        {{- include "plane.configChecksum" . | nindent 8 }}
     spec:
       containers:
         - name: beat-worker
@@ -32,5 +34,11 @@ spec:
                 name: {{ include "plane.fullname" . }}-config
             - secretRef:
                 name: {{ include "plane.secretName" . }}
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "pgrep -f 'celery.*beat'"]
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            timeoutSeconds: 5
           resources:
             {{- toYaml .Values.beatWorker.resources | nindent 12 }}

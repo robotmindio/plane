@@ -49,6 +49,14 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# Validate domain
+if [[ -z "${DOMAIN}" ]]; then
+  die "--domain value must not be empty"
+fi
+if [[ "${DOMAIN}" == http* ]]; then
+  die "--domain should be a bare domain (e.g. plane.example.com), not a URL"
+fi
+
 # ---------------------------------------------------------------------------
 # Prerequisites
 # ---------------------------------------------------------------------------
@@ -90,14 +98,17 @@ else
   if [[ "${DOMAIN}" == "localhost" ]]; then
     WEB_URL="http://localhost"
     SITE_ADDRESS=":80"
-    CERT_LINE="# CERT_EMAIL="
+    CERT_BLOCK="# CERT_EMAIL=
+# CERT_ACME_CA="
   else
     WEB_URL="https://${DOMAIN}"
     SITE_ADDRESS="${DOMAIN}"
     if [[ -n "${EMAIL}" ]]; then
-      CERT_LINE="CERT_EMAIL=email ${EMAIL}"
+      CERT_BLOCK="CERT_EMAIL=email ${EMAIL}
+CERT_ACME_CA=https://acme-v02.api.letsencrypt.org/directory"
     else
-      CERT_LINE="# CERT_EMAIL=email admin@${DOMAIN}"
+      CERT_BLOCK="# CERT_EMAIL=email admin@${DOMAIN}
+# CERT_ACME_CA=https://acme-v02.api.letsencrypt.org/directory"
     fi
   fi
 
@@ -125,12 +136,10 @@ POSTGRES_DB=plane
 POSTGRES_PORT=5432
 PGHOST=plane-db
 PGDATABASE=plane
-DATABASE_URL=postgresql://plane:${POSTGRES_PASSWORD}@plane-db/plane
 
 # Redis
 REDIS_HOST=plane-redis
 REDIS_PORT=6379
-REDIS_URL=redis://plane-redis:6379/
 
 # RabbitMQ
 RABBITMQ_HOST=plane-mq
@@ -138,17 +147,14 @@ RABBITMQ_PORT=5672
 RABBITMQ_USER=plane
 RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
 RABBITMQ_VHOST=plane
-AMQP_URL=amqp://plane:${RABBITMQ_PASSWORD}@plane-mq:5672/plane
 
 # MinIO / S3
 USE_MINIO=1
 AWS_ACCESS_KEY_ID=${MINIO_ACCESS_KEY}
 AWS_SECRET_ACCESS_KEY=${MINIO_SECRET_KEY}
-AWS_REGION=
+AWS_REGION=us-east-1
 AWS_S3_ENDPOINT_URL=http://plane-minio:9000
 AWS_S3_BUCKET_NAME=uploads
-MINIO_ROOT_USER=${MINIO_ACCESS_KEY}
-MINIO_ROOT_PASSWORD=${MINIO_SECRET_KEY}
 
 # Live server
 LIVE_SERVER_SECRET_KEY=${LIVE_SECRET}
@@ -158,9 +164,8 @@ API_BASE_URL=http://api:8000
 LISTEN_HTTP_PORT=80
 LISTEN_HTTPS_PORT=443
 SITE_ADDRESS=${SITE_ADDRESS}
-TRUSTED_PROXIES=0.0.0.0/0
-${CERT_LINE}
-CERT_ACME_CA=https://acme-v02.api.letsencrypt.org/directory
+TRUSTED_PROXIES=private_ranges
+${CERT_BLOCK}
 
 # Replicas
 WEB_REPLICAS=1
@@ -168,8 +173,6 @@ SPACE_REPLICAS=1
 ADMIN_REPLICAS=1
 API_REPLICAS=1
 WORKER_REPLICAS=1
-# Beat scheduler MUST remain at 1 — multiple instances cause duplicate tasks
-BEAT_WORKER_REPLICAS=1
 LIVE_REPLICAS=1
 EOF
 

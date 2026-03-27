@@ -7,8 +7,10 @@ metadata:
     {{- include "plane.labels" . | nindent 4 }}
 spec:
   ports:
-    - port: 6379
+    - name: redis
+      port: 6379
       targetPort: 6379
+      protocol: TCP
   selector:
     {{- $ctx := dict "Chart" .Chart "Release" .Release "Values" .Values "component" "redis" }}
     {{- include "plane.selectorLabels" $ctx | nindent 4 }}
@@ -36,6 +38,7 @@ spec:
           image: {{ .Values.redis.image }}
           ports:
             - containerPort: 6379
+              protocol: TCP
           volumeMounts:
             - name: data
               mountPath: /data
@@ -44,6 +47,18 @@ spec:
               command: ["valkey-cli", "ping"]
             initialDelaySeconds: 5
             periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["valkey-cli", "ping"]
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
   volumeClaimTemplates:
     - metadata:
         name: data

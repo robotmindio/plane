@@ -6,8 +6,10 @@ metadata:
     {{- include "plane.labels" . | nindent 4 }}
 spec:
   ports:
-    - port: 3000
+    - name: http
+      port: 3000
       targetPort: 3000
+      protocol: TCP
   selector:
     {{- $ctx := dict "Chart" .Chart "Release" .Release "Values" .Values "component" "live" }}
     {{- include "plane.selectorLabels" $ctx | nindent 4 }}
@@ -28,6 +30,8 @@ spec:
     metadata:
       labels:
         {{- include "plane.selectorLabels" $ctx | nindent 8 }}
+      annotations:
+        {{- include "plane.configChecksum" . | nindent 8 }}
     spec:
       containers:
         - name: live
@@ -35,10 +39,20 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - containerPort: 3000
+              protocol: TCP
           envFrom:
             - configMapRef:
                 name: {{ include "plane.fullname" . }}-config
             - secretRef:
                 name: {{ include "plane.secretName" . }}
+          readinessProbe:
+            tcpSocket:
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 3000
+            periodSeconds: 30
           resources:
             {{- toYaml .Values.live.resources | nindent 12 }}

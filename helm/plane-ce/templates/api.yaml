@@ -6,8 +6,10 @@ metadata:
     {{- include "plane.labels" . | nindent 4 }}
 spec:
   ports:
-    - port: 8000
+    - name: http
+      port: 8000
       targetPort: 8000
+      protocol: TCP
   selector:
     {{- $ctx := dict "Chart" .Chart "Release" .Release "Values" .Values "component" "api" }}
     {{- include "plane.selectorLabels" $ctx | nindent 4 }}
@@ -28,6 +30,8 @@ spec:
     metadata:
       labels:
         {{- include "plane.selectorLabels" $ctx | nindent 8 }}
+      annotations:
+        {{- include "plane.configChecksum" . | nindent 8 }}
     spec:
       containers:
         - name: api
@@ -47,18 +51,31 @@ spec:
               gunicorn -w {{ .Values.api.gunicornWorkers }} -k uvicorn.workers.UvicornWorker plane.asgi:application --bind 0.0.0.0:8000
           ports:
             - containerPort: 8000
+              protocol: TCP
           envFrom:
             - configMapRef:
                 name: {{ include "plane.fullname" . }}-config
             - secretRef:
                 name: {{ include "plane.secretName" . }}
-          readinessProbe:
+          startupProbe:
             httpGet:
               path: /
               port: 8000
             initialDelaySeconds: 30
             periodSeconds: 10
             failureThreshold: 30
-            timeoutSeconds: 1
+            timeoutSeconds: 2
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8000
+            periodSeconds: 10
+            timeoutSeconds: 2
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8000
+            periodSeconds: 30
+            timeoutSeconds: 5
           resources:
             {{- toYaml .Values.api.resources | nindent 12 }}

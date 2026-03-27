@@ -10,9 +10,7 @@ spec:
     - name: amqp
       port: 5672
       targetPort: 5672
-    - name: management
-      port: 15672
-      targetPort: 15672
+      protocol: TCP
   selector:
     {{- $ctx := dict "Chart" .Chart "Release" .Release "Values" .Values "component" "rabbitmq" }}
     {{- include "plane.selectorLabels" $ctx | nindent 4 }}
@@ -40,7 +38,7 @@ spec:
           image: {{ .Values.rabbitmq.image }}
           ports:
             - containerPort: 5672
-            - containerPort: 15672
+              protocol: TCP
           env:
             - name: RABBITMQ_DEFAULT_USER
               value: {{ .Values.rabbitmq.user | quote }}
@@ -59,6 +57,18 @@ spec:
               command: ["rabbitmq-diagnostics", "-q", "ping"]
             initialDelaySeconds: 30
             periodSeconds: 30
+          livenessProbe:
+            exec:
+              command: ["rabbitmq-diagnostics", "-q", "ping"]
+            initialDelaySeconds: 60
+            periodSeconds: 60
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
   volumeClaimTemplates:
     - metadata:
         name: data

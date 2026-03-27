@@ -23,8 +23,10 @@ ingress:
     secretName: plane-tls
 
 # -- Application secrets (override in your values or use existingSecret)
+# When using existingSecret, the Secret must contain these keys:
+#   SECRET_KEY, LIVE_SERVER_SECRET_KEY, DATABASE_URL, REDIS_URL, AMQP_URL,
+#   AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, POSTGRES_PASSWORD, RABBITMQ_PASSWORD
 secrets:
-  # Set to an existing Secret name to skip creating one
   existingSecret: ""
   secretKey: "change-me-to-a-random-64-char-hex-string"
   liveServerSecretKey: "change-me-live-server-secret"
@@ -85,9 +87,8 @@ worker:
       cpu: "1"
       memory: 1Gi
 
-# -- Celery beat scheduler (must be exactly 1 replica — duplicates cause double-fired tasks)
+# -- Celery beat scheduler (always exactly 1 replica — hardcoded in template)
 beatWorker:
-  replicas: 1
   resources:
     requests:
       cpu: 50m
@@ -109,7 +110,6 @@ live:
 
 # -- PostgreSQL
 postgres:
-  # Use the in-cluster PostgreSQL
   local: true
   image: postgres:15.7-alpine
   storage: 10Gi
@@ -132,7 +132,7 @@ redis:
 # -- RabbitMQ
 rabbitmq:
   local: true
-  image: rabbitmq:3.13.6-management-alpine
+  image: rabbitmq:3.13.6-alpine
   storage: 2Gi
   storageClass: ""
   # External AMQP URL (used when local=false)
@@ -163,3 +163,4 @@ env:
   debug: "0"
   fileSize: "5242880"
   apiRateLimit: "60/minute"
+  awsRegion: "us-east-1"
