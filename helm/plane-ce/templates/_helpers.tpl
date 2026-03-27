@@ -55,49 +55,49 @@ Secret name — either user-provided or generated.
 Image helper: registry/image:tag
 */}}
 {{- define "plane.image" -}}
-{{ .registry }}/{{ .name }}:{{ .tag }}
+{{- .registry }}/{{ .name }}:{{ .tag }}
 {{- end }}
 
 {{/*
 PostgreSQL connection URL.
 */}}
 {{- define "plane.databaseUrl" -}}
-{{- if .Values.postgres.local }}
+{{- if .Values.postgres.local -}}
 postgresql://{{ .Values.postgres.user }}:{{ .Values.postgres.password }}@{{ include "plane.fullname" . }}-postgres:5432/{{ .Values.postgres.database }}
-{{- else }}
+{{- else -}}
 {{- .Values.postgres.externalUrl }}
-{{- end }}
+{{- end -}}
 {{- end }}
 
 {{/*
 Redis connection URL.
 */}}
 {{- define "plane.redisUrl" -}}
-{{- if .Values.redis.local }}
+{{- if .Values.redis.local -}}
 redis://{{ include "plane.fullname" . }}-redis:6379/
-{{- else }}
+{{- else -}}
 {{- .Values.redis.externalUrl }}
-{{- end }}
+{{- end -}}
 {{- end }}
 
 {{/*
 AMQP connection URL.
 */}}
 {{- define "plane.amqpUrl" -}}
-{{- if .Values.rabbitmq.local }}
+{{- if .Values.rabbitmq.local -}}
 amqp://{{ .Values.rabbitmq.user }}:{{ .Values.rabbitmq.password }}@{{ include "plane.fullname" . }}-rabbitmq:5672/{{ .Values.rabbitmq.vhost }}
-{{- else }}
+{{- else -}}
 {{- .Values.rabbitmq.externalUrl }}
-{{- end }}
+{{- end -}}
 {{- end }}
 
 {{/*
 S3 endpoint URL.
 */}}
 {{- define "plane.s3Endpoint" -}}
-{{- if .Values.minio.local }}
+{{- if .Values.minio.local -}}
 http://{{ include "plane.fullname" . }}-minio:9000
-{{- else }}
+{{- else -}}
 {{- .Values.minio.external.endpoint }}
-{{- end }}
+{{- end -}}
 {{- end }}

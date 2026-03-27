@@ -31,8 +31,12 @@ EMAIL=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --domain)  DOMAIN="$2";  shift 2 ;;
-    --email)   EMAIL="$2";   shift 2 ;;
+    --domain)
+      [[ $# -ge 2 ]] || die "--domain requires a value"
+      DOMAIN="$2"; shift 2 ;;
+    --email)
+      [[ $# -ge 2 ]] || die "--email requires a value"
+      EMAIL="$2"; shift 2 ;;
     --help|-h)
       echo "Usage: $0 [--domain <domain>] [--email <email>]"
       echo ""
@@ -135,8 +139,6 @@ RABBITMQ_USER=plane
 RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
 RABBITMQ_VHOST=plane
 AMQP_URL=amqp://plane:${RABBITMQ_PASSWORD}@plane-mq:5672/plane
-RABBITMQ_DEFAULT_USER=plane
-RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD}
 
 # MinIO / S3
 USE_MINIO=1
@@ -145,7 +147,6 @@ AWS_SECRET_ACCESS_KEY=${MINIO_SECRET_KEY}
 AWS_REGION=
 AWS_S3_ENDPOINT_URL=http://plane-minio:9000
 AWS_S3_BUCKET_NAME=uploads
-MINIO_ENDPOINT_SSL=0
 MINIO_ROOT_USER=${MINIO_ACCESS_KEY}
 MINIO_ROOT_PASSWORD=${MINIO_SECRET_KEY}
 
@@ -167,6 +168,7 @@ SPACE_REPLICAS=1
 ADMIN_REPLICAS=1
 API_REPLICAS=1
 WORKER_REPLICAS=1
+# Beat scheduler MUST remain at 1 — multiple instances cause duplicate tasks
 BEAT_WORKER_REPLICAS=1
 LIVE_REPLICAS=1
 EOF
@@ -186,7 +188,12 @@ echo ""
 echo "     cd ${SCRIPT_DIR}"
 echo "     ${COMPOSE_CMD} up -d"
 echo ""
-echo "  3. Open http://${DOMAIN} and create your admin account"
+if [[ "${DOMAIN}" == "localhost" ]]; then
+  DISPLAY_URL="http://localhost"
+else
+  DISPLAY_URL="https://${DOMAIN}"
+fi
+echo "  3. Open ${DISPLAY_URL} and create your admin account"
 echo ""
 if [[ "${DOMAIN}" != "localhost" && -z "${EMAIL}" ]]; then
   warn "No --email provided. TLS is disabled."

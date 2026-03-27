@@ -56,7 +56,7 @@ services:
   plane-db:
     image: postgres:15.7-alpine
     restart: unless-stopped
-    command: postgres -c 'max_connections=1000'
+    command: postgres -c 'max_connections=200'
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-plane}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -83,6 +83,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
     networks:
       - plane-net
 
@@ -105,7 +106,7 @@ services:
       - plane-net
 
   plane-minio:
-    image: minio/minio:latest
+    image: minio/minio:RELEASE.2024-06-13T22-53-53Z
     restart: unless-stopped
     command: server /export --console-address ":9090"
     environment:
@@ -214,7 +215,8 @@ services:
       migrator:
         condition: service_completed_successfully
     deploy:
-      replicas: ${BEAT_WORKER_REPLICAS:-1}
+      # Beat scheduler MUST remain at 1 — multiple instances cause duplicate tasks
+      replicas: 1
     networks:
       - plane-net
 
@@ -267,6 +269,12 @@ services:
       <<: [*live-env, *redis-env]
     deploy:
       replicas: ${LIVE_REPLICAS:-1}
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:3000/')\" || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
     networks:
       - plane-net
 
@@ -292,11 +300,16 @@ services:
       - proxy_config:/config
       - proxy_data:/data
     depends_on:
-      - web
-      - space
-      - admin
-      - api
-      - live
+      web:
+        condition: service_healthy
+      space:
+        condition: service_healthy
+      admin:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+      live:
+        condition: service_healthy
     networks:
       - plane-net
 
@@ -311,7 +324,6 @@ volumes:
   logs_api:
   logs_worker:
   logs_beat:
-  logs_migrator:
   proxy_config:
   proxy_data:
 

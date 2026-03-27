@@ -5,7 +5,8 @@ metadata:
   labels:
     {{- include "plane.labels" . | nindent 4 }}
 spec:
-  replicas: {{ .Values.beatWorker.replicas }}
+  # Beat scheduler must be exactly 1 — multiple instances cause duplicate tasks
+  replicas: 1
   selector:
     matchLabels:
       {{- $ctx := dict "Chart" .Chart "Release" .Release "Values" .Values "component" "beat-worker" }}

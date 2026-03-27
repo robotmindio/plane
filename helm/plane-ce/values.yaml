@@ -2,6 +2,9 @@
 # Plane CE Helm Chart — Default Values
 # =============================================================================
 
+nameOverride: ""
+fullnameOverride: ""
+
 # -- Global image settings
 image:
   registry: artifacts.plane.so/makeplane
@@ -14,6 +17,7 @@ ingress:
   appHost: plane.example.com
   ingressClass: nginx
   annotations: {}
+  proxyBodySize: "5m"
   tls:
     enabled: false
     secretName: plane-tls
@@ -81,7 +85,7 @@ worker:
       cpu: "1"
       memory: 1Gi
 
-# -- Celery beat scheduler
+# -- Celery beat scheduler (must be exactly 1 replica — duplicates cause double-fired tasks)
 beatWorker:
   replicas: 1
   resources:
@@ -140,7 +144,7 @@ rabbitmq:
 # -- MinIO (S3-compatible object storage)
 minio:
   local: true
-  image: minio/minio:latest
+  image: minio/minio:RELEASE.2024-06-13T22-53-53Z
   storage: 20Gi
   storageClass: ""
   accessKey: "change-me-minio-access-key"

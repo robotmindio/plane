@@ -57,8 +57,9 @@ spec:
             - name: data
               mountPath: /export
           readinessProbe:
-            exec:
-              command: ["mc", "ready", "local"]
+            httpGet:
+              path: /minio/health/ready
+              port: 9000
             initialDelaySeconds: 10
             periodSeconds: 30
   volumeClaimTemplates:
