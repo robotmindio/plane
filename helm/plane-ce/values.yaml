@@ -1,0 +1,161 @@
+# =============================================================================
+# Plane CE Helm Chart — Default Values
+# =============================================================================
+
+# -- Global image settings
+image:
+  registry: artifacts.plane.so/makeplane
+  tag: stable
+  pullPolicy: IfNotPresent
+
+# -- Ingress
+ingress:
+  enabled: true
+  appHost: plane.example.com
+  ingressClass: nginx
+  annotations: {}
+  tls:
+    enabled: false
+    secretName: plane-tls
+
+# -- Application secrets (override in your values or use existingSecret)
+secrets:
+  # Set to an existing Secret name to skip creating one
+  existingSecret: ""
+  secretKey: "change-me-to-a-random-64-char-hex-string"
+  liveServerSecretKey: "change-me-live-server-secret"
+
+# -- Web frontend
+web:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# -- Space (public project pages)
+space:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# -- Admin (god-mode panel)
+admin:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# -- API (Django backend)
+api:
+  replicas: 1
+  gunicornWorkers: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+# -- Celery worker
+worker:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+# -- Celery beat scheduler
+beatWorker:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# -- Live (real-time WebSocket server)
+live:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# -- PostgreSQL
+postgres:
+  # Use the in-cluster PostgreSQL
+  local: true
+  image: postgres:15.7-alpine
+  storage: 10Gi
+  storageClass: ""
+  # External database URL (used when local=false)
+  externalUrl: ""
+  user: plane
+  password: "change-me-postgres-password"
+  database: plane
+
+# -- Redis (Valkey)
+redis:
+  local: true
+  image: valkey/valkey:7.2.11-alpine
+  storage: 2Gi
+  storageClass: ""
+  # External Redis URL (used when local=false)
+  externalUrl: ""
+
+# -- RabbitMQ
+rabbitmq:
+  local: true
+  image: rabbitmq:3.13.6-management-alpine
+  storage: 2Gi
+  storageClass: ""
+  # External AMQP URL (used when local=false)
+  externalUrl: ""
+  user: plane
+  password: "change-me-rabbitmq-password"
+  vhost: plane
+
+# -- MinIO (S3-compatible object storage)
+minio:
+  local: true
+  image: minio/minio:latest
+  storage: 20Gi
+  storageClass: ""
+  accessKey: "change-me-minio-access-key"
+  secretKey: "change-me-minio-secret-key"
+  bucketName: uploads
+  # External S3 settings (used when local=false)
+  external:
+    endpoint: ""
+    accessKey: ""
+    secretKey: ""
+    region: ""
+    bucketName: uploads
+
+# -- General settings
+env:
+  debug: "0"
+  fileSize: "5242880"
+  apiRateLimit: "60/minute"

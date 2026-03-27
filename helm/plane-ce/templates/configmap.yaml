@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "plane.fullname" . }}-config
+  labels:
+    {{- include "plane.labels" . | nindent 4 }}
+data:
+  APP_DOMAIN: {{ .Values.ingress.appHost | quote }}
+  WEB_URL: {{ printf "http%s://%s" (ternary "s" "" .Values.ingress.tls.enabled) .Values.ingress.appHost | quote }}
+  DEBUG: {{ .Values.env.debug | quote }}
+  CORS_ALLOWED_ORIGINS: {{ printf "http%s://%s" (ternary "s" "" .Values.ingress.tls.enabled) .Values.ingress.appHost | quote }}
+  GUNICORN_WORKERS: {{ .Values.api.gunicornWorkers | quote }}
+  API_KEY_RATE_LIMIT: {{ .Values.env.apiRateLimit | quote }}
+  FILE_SIZE_LIMIT: {{ .Values.env.fileSize | quote }}
+  # PostgreSQL
+  PGHOST: {{ include "plane.fullname" . }}-postgres
+  PGDATABASE: {{ .Values.postgres.database | quote }}
+  POSTGRES_USER: {{ .Values.postgres.user | quote }}
+  POSTGRES_DB: {{ .Values.postgres.database | quote }}
+  POSTGRES_PORT: "5432"
+  # Redis
+  REDIS_HOST: {{ include "plane.fullname" . }}-redis
+  REDIS_PORT: "6379"
+  # RabbitMQ
+  RABBITMQ_HOST: {{ include "plane.fullname" . }}-rabbitmq
+  RABBITMQ_PORT: "5672"
+  RABBITMQ_USER: {{ .Values.rabbitmq.user | quote }}
+  RABBITMQ_VHOST: {{ .Values.rabbitmq.vhost | quote }}
+  # S3
+  USE_MINIO: {{ ternary "1" "0" .Values.minio.local | quote }}
+  AWS_S3_ENDPOINT_URL: {{ include "plane.s3Endpoint" . | quote }}
+  {{- if .Values.minio.local }}
+  AWS_S3_BUCKET_NAME: {{ .Values.minio.bucketName | quote }}
+  {{- else }}
+  AWS_S3_BUCKET_NAME: {{ .Values.minio.external.bucketName | quote }}
+  AWS_REGION: {{ .Values.minio.external.region | quote }}
+  {{- end }}
+  # Live server
+  API_BASE_URL: http://{{ include "plane.fullname" . }}-api:8000

@@ -1,0 +1,29 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "plane.fullname" . }}-migrator
+  labels:
+    {{- include "plane.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        {{- $ctx := dict "Chart" .Chart "Release" .Release "Values" .Values "component" "migrator" }}
+        {{- include "plane.selectorLabels" $ctx | nindent 8 }}
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: migrator
+          image: {{ include "plane.image" (dict "registry" .Values.image.registry "name" "plane-backend" "tag" .Values.image.tag) }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["sh", "-c", "python manage.py wait_for_db && python manage.py migrate"]
+          envFrom:
+            - configMapRef:
+                name: {{ include "plane.fullname" . }}-config
+            - secretRef:
+                name: {{ include "plane.secretName" . }}

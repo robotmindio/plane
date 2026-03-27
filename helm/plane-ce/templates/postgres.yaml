@@ -1,0 +1,76 @@
+{{- if .Values.postgres.local }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "plane.fullname" . }}-postgres
+  labels:
+    {{- include "plane.labels" . | nindent 4 }}
+spec:
+  ports:
+    - port: 5432
+      targetPort: 5432
+  selector:
+    {{- $ctx := dict "Chart" .Chart "Release" .Release "Values" .Values "component" "postgres" }}
+    {{- include "plane.selectorLabels" $ctx | nindent 4 }}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "plane.fullname" . }}-postgres
+  labels:
+    {{- include "plane.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ include "plane.fullname" . }}-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- $ctx := dict "Chart" .Chart "Release" .Release "Values" .Values "component" "postgres" }}
+      {{- include "plane.selectorLabels" $ctx | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "plane.selectorLabels" $ctx | nindent 8 }}
+    spec:
+      containers:
+        - name: postgres
+          image: {{ .Values.postgres.image }}
+          args: ["-c", "max_connections=1000"]
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              value: {{ .Values.postgres.user | quote }}
+            - name: POSTGRES_DB
+              value: {{ .Values.postgres.database | quote }}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "plane.secretName" . }}
+                  key: POSTGRES_PASSWORD
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", {{ .Values.postgres.user | quote }}]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", {{ .Values.postgres.user | quote }}]
+            initialDelaySeconds: 30
+            periodSeconds: 30
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- if .Values.postgres.storageClass }}
+        storageClassName: {{ .Values.postgres.storageClass | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.postgres.storage }}
+{{- end }}

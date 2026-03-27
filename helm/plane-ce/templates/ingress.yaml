@@ -1,0 +1,83 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "plane.fullname" . }}
+  labels:
+    {{- include "plane.labels" . | nindent 4 }}
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: {{ .Values.env.fileSize | quote }}
+    {{- with .Values.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.ingressClass }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.appHost }}
+      secretName: {{ .Values.ingress.tls.secretName }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.appHost }}
+      http:
+        paths:
+          - path: /spaces
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "plane.fullname" . }}-space
+                port:
+                  number: 3000
+          - path: /god-mode
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "plane.fullname" . }}-admin
+                port:
+                  number: 3000
+          - path: /live
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "plane.fullname" . }}-live
+                port:
+                  number: 3000
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "plane.fullname" . }}-api
+                port:
+                  number: 8000
+          - path: /auth
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "plane.fullname" . }}-api
+                port:
+                  number: 8000
+          - path: /static
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "plane.fullname" . }}-api
+                port:
+                  number: 8000
+          {{- if .Values.minio.local }}
+          - path: /{{ .Values.minio.bucketName }}
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "plane.fullname" . }}-minio
+                port:
+                  number: 9000
+          {{- end }}
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "plane.fullname" . }}-web
+                port:
+                  number: 3000
+{{- end }}

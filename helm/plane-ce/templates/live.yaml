@@ -1,0 +1,44 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "plane.fullname" . }}-live
+  labels:
+    {{- include "plane.labels" . | nindent 4 }}
+spec:
+  ports:
+    - port: 3000
+      targetPort: 3000
+  selector:
+    {{- $ctx := dict "Chart" .Chart "Release" .Release "Values" .Values "component" "live" }}
+    {{- include "plane.selectorLabels" $ctx | nindent 4 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "plane.fullname" . }}-live
+  labels:
+    {{- include "plane.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.live.replicas }}
+  selector:
+    matchLabels:
+      {{- $ctx := dict "Chart" .Chart "Release" .Release "Values" .Values "component" "live" }}
+      {{- include "plane.selectorLabels" $ctx | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "plane.selectorLabels" $ctx | nindent 8 }}
+    spec:
+      containers:
+        - name: live
+          image: {{ include "plane.image" (dict "registry" .Values.image.registry "name" "plane-live" "tag" .Values.image.tag) }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: 3000
+          envFrom:
+            - configMapRef:
+                name: {{ include "plane.fullname" . }}-config
+            - secretRef:
+                name: {{ include "plane.secretName" . }}
+          resources:
+            {{- toYaml .Values.live.resources | nindent 12 }}

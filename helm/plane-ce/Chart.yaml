@@ -1,0 +1,15 @@
+apiVersion: v2
+name: plane-ce
+description: Plane Community Edition — open-source project management
+type: application
+version: 1.0.0
+appVersion: "stable"
+keywords:
+  - plane
+  - project-management
+  - issue-tracker
+home: https://plane.so
+sources:
+  - https://github.com/makeplane/plane
+maintainers:
+  - name: RobotMind

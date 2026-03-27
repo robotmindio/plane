@@ -1,0 +1,323 @@
+# =============================================================================
+# Plane Community Edition — Docker Compose
+# =============================================================================
+# Usage:
+#   cp .env.example .env   # edit secrets!
+#   docker compose up -d
+# =============================================================================
+
+x-app-env: &app-env
+  SECRET_KEY: ${SECRET_KEY}
+  DEBUG: ${DEBUG:-0}
+  CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost}
+  GUNICORN_WORKERS: ${GUNICORN_WORKERS:-1}
+  API_KEY_RATE_LIMIT: ${API_KEY_RATE_LIMIT:-60/minute}
+  WEB_URL: ${WEB_URL:-http://localhost}
+  FILE_SIZE_LIMIT: ${FILE_SIZE_LIMIT:-5242880}
+
+x-db-env: &db-env
+  PGHOST: ${PGHOST:-plane-db}
+  PGDATABASE: ${PGDATABASE:-plane}
+  POSTGRES_USER: ${POSTGRES_USER:-plane}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+  POSTGRES_DB: ${POSTGRES_DB:-plane}
+  POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+  DATABASE_URL: postgresql://${POSTGRES_USER:-plane}:${POSTGRES_PASSWORD}@${PGHOST:-plane-db}/${POSTGRES_DB:-plane}
+
+x-redis-env: &redis-env
+  REDIS_HOST: ${REDIS_HOST:-plane-redis}
+  REDIS_PORT: ${REDIS_PORT:-6379}
+  REDIS_URL: redis://${REDIS_HOST:-plane-redis}:${REDIS_PORT:-6379}/
+
+x-mq-env: &mq-env
+  RABBITMQ_HOST: ${RABBITMQ_HOST:-plane-mq}
+  RABBITMQ_PORT: ${RABBITMQ_PORT:-5672}
+  RABBITMQ_USER: ${RABBITMQ_USER:-plane}
+  RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+  RABBITMQ_VHOST: ${RABBITMQ_VHOST:-plane}
+  AMQP_URL: amqp://${RABBITMQ_USER:-plane}:${RABBITMQ_PASSWORD}@${RABBITMQ_HOST:-plane-mq}:${RABBITMQ_PORT:-5672}/${RABBITMQ_VHOST:-plane}
+
+x-s3-env: &s3-env
+  USE_MINIO: ${USE_MINIO:-1}
+  AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+  AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+  AWS_REGION: ${AWS_REGION:-}
+  AWS_S3_ENDPOINT_URL: ${AWS_S3_ENDPOINT_URL:-http://plane-minio:9000}
+  AWS_S3_BUCKET_NAME: ${AWS_S3_BUCKET_NAME:-uploads}
+
+x-live-env: &live-env
+  API_BASE_URL: ${API_BASE_URL:-http://api:8000}
+  LIVE_SERVER_SECRET_KEY: ${LIVE_SERVER_SECRET_KEY}
+
+services:
+  # ---------------------------------------------------------------------------
+  # Infrastructure
+  # ---------------------------------------------------------------------------
+  plane-db:
+    image: postgres:15.7-alpine
+    restart: unless-stopped
+    command: postgres -c 'max_connections=1000'
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-plane}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-plane}
+      PGDATA: /var/lib/postgresql/data
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-plane} -d ${POSTGRES_DB:-plane}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - plane-net
+
+  plane-redis:
+    image: valkey/valkey:7.2.11-alpine
+    restart: unless-stopped
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - plane-net
+
+  plane-mq:
+    image: rabbitmq:3.13.6-management-alpine
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-plane}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST:-plane}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - plane-net
+
+  plane-minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /export --console-address ":9090"
+    environment:
+      MINIO_ROOT_USER: ${AWS_ACCESS_KEY_ID}
+      MINIO_ROOT_PASSWORD: ${AWS_SECRET_ACCESS_KEY}
+    volumes:
+      - uploads:/export
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+    networks:
+      - plane-net
+
+  # ---------------------------------------------------------------------------
+  # Database migrations (run-once job)
+  # ---------------------------------------------------------------------------
+  migrator:
+    image: artifacts.plane.so/makeplane/plane-backend:${APP_RELEASE:-stable}
+    restart: "no"
+    command: >
+      sh -c "python manage.py wait_for_db &&
+             python manage.py migrate"
+    environment:
+      <<: [*app-env, *db-env, *redis-env, *mq-env, *s3-env]
+    depends_on:
+      plane-db:
+        condition: service_healthy
+      plane-redis:
+        condition: service_healthy
+      plane-mq:
+        condition: service_healthy
+    networks:
+      - plane-net
+
+  # ---------------------------------------------------------------------------
+  # Application services
+  # ---------------------------------------------------------------------------
+  api:
+    image: artifacts.plane.so/makeplane/plane-backend:${APP_RELEASE:-stable}
+    restart: unless-stopped
+    command: >
+      sh -c "python manage.py wait_for_db &&
+             python manage.py wait_for_migrations &&
+             python manage.py register_instance &&
+             python manage.py configure_instance &&
+             python manage.py create_bucket &&
+             python manage.py clear_cache &&
+             python manage.py collectstatic --noinput &&
+             gunicorn -w ${GUNICORN_WORKERS:-1} -k uvicorn.workers.UvicornWorker plane.asgi:application --bind 0.0.0.0:8000"
+    environment:
+      <<: [*app-env, *db-env, *redis-env, *mq-env, *s3-env, *live-env]
+    volumes:
+      - logs_api:/code/plane/logs
+    depends_on:
+      migrator:
+        condition: service_completed_successfully
+      plane-minio:
+        condition: service_healthy
+    deploy:
+      replicas: ${API_REPLICAS:-1}
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/')\""]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - plane-net
+
+  worker:
+    image: artifacts.plane.so/makeplane/plane-backend:${APP_RELEASE:-stable}
+    restart: unless-stopped
+    command: >
+      sh -c "python manage.py wait_for_db &&
+             python manage.py wait_for_migrations &&
+             celery -A plane worker -l info"
+    environment:
+      <<: [*app-env, *db-env, *redis-env, *mq-env, *s3-env]
+    volumes:
+      - logs_worker:/code/plane/logs
+    depends_on:
+      migrator:
+        condition: service_completed_successfully
+      plane-minio:
+        condition: service_healthy
+    deploy:
+      replicas: ${WORKER_REPLICAS:-1}
+    networks:
+      - plane-net
+
+  beat-worker:
+    image: artifacts.plane.so/makeplane/plane-backend:${APP_RELEASE:-stable}
+    restart: unless-stopped
+    command: >
+      sh -c "python manage.py wait_for_db &&
+             python manage.py wait_for_migrations &&
+             celery -A plane beat -l info"
+    environment:
+      <<: [*app-env, *db-env, *redis-env, *mq-env, *s3-env]
+    volumes:
+      - logs_beat:/code/plane/logs
+    depends_on:
+      migrator:
+        condition: service_completed_successfully
+    deploy:
+      replicas: ${BEAT_WORKER_REPLICAS:-1}
+    networks:
+      - plane-net
+
+  web:
+    image: artifacts.plane.so/makeplane/plane-frontend:${APP_RELEASE:-stable}
+    restart: unless-stopped
+    deploy:
+      replicas: ${WEB_REPLICAS:-1}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3000/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - plane-net
+
+  space:
+    image: artifacts.plane.so/makeplane/plane-space:${APP_RELEASE:-stable}
+    restart: unless-stopped
+    deploy:
+      replicas: ${SPACE_REPLICAS:-1}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3000/spaces/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - plane-net
+
+  admin:
+    image: artifacts.plane.so/makeplane/plane-admin:${APP_RELEASE:-stable}
+    restart: unless-stopped
+    deploy:
+      replicas: ${ADMIN_REPLICAS:-1}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3000/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - plane-net
+
+  live:
+    image: artifacts.plane.so/makeplane/plane-live:${APP_RELEASE:-stable}
+    restart: unless-stopped
+    environment:
+      <<: [*live-env, *redis-env]
+    deploy:
+      replicas: ${LIVE_REPLICAS:-1}
+    networks:
+      - plane-net
+
+  # ---------------------------------------------------------------------------
+  # Reverse proxy
+  # ---------------------------------------------------------------------------
+  proxy:
+    image: artifacts.plane.so/makeplane/plane-proxy:${APP_RELEASE:-stable}
+    restart: unless-stopped
+    ports:
+      - "${LISTEN_HTTP_PORT:-80}:80"
+      - "${LISTEN_HTTPS_PORT:-443}:443"
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:-localhost}
+      SITE_ADDRESS: ${SITE_ADDRESS:-:80}
+      CERT_EMAIL: ${CERT_EMAIL:-}
+      CERT_ACME_CA: ${CERT_ACME_CA:-}
+      CERT_ACME_DNS: ${CERT_ACME_DNS:-}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-0.0.0.0/0}
+      FILE_SIZE_LIMIT: ${FILE_SIZE_LIMIT:-5242880}
+      BUCKET_NAME: ${AWS_S3_BUCKET_NAME:-uploads}
+    volumes:
+      - proxy_config:/config
+      - proxy_data:/data
+    depends_on:
+      - web
+      - space
+      - admin
+      - api
+      - live
+    networks:
+      - plane-net
+
+# -----------------------------------------------------------------------------
+# Volumes
+# -----------------------------------------------------------------------------
+volumes:
+  pgdata:
+  redisdata:
+  uploads:
+  rabbitmq_data:
+  logs_api:
+  logs_worker:
+  logs_beat:
+  logs_migrator:
+  proxy_config:
+  proxy_data:
+
+# -----------------------------------------------------------------------------
+# Networks
+# -----------------------------------------------------------------------------
+networks:
+  plane-net:
+    driver: bridge
