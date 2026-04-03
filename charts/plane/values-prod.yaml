@@ -1,0 +1,7 @@
+# Production overrides — release name: plane
+
+ingress:
+  appHost: plane.k8s.robotmind.io
+  tls:
+    enabled: true
+    secretName: wildcard-tls

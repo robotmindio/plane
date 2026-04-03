@@ -16,3 +16,4 @@ Thumbs.db
 # Helm packaging artifacts
 helm/plane-ce/charts/
 *.tgz
+values-secrets.yaml
