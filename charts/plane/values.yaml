@@ -14,13 +14,13 @@ image:
 # -- Ingress
 ingress:
   enabled: true
-  appHost: plane.example.com
+  appHost: plane.k8s.robotmind.io
   ingressClass: traefik
   annotations: {}
   proxyBodySize: "5m"
   tls:
-    enabled: false
-    secretName: plane-tls
+    enabled: true
+    secretName: wildcard-tls
 
 # -- Application secrets (override in your values or use existingSecret)
 # When using existingSecret, the Secret must contain these keys:
